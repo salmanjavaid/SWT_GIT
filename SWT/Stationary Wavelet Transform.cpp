@@ -16,9 +16,13 @@ void conv2(const Mat &img, const Mat& kernel, ConvolutionType type, Mat& dest, i
   Point anchor(kernel.cols - kernel.cols/2 - 1, kernel.rows - kernel.rows/2 - 1);
   int borderMode = BORDER_CONSTANT;
   Mat kernel_temp;
-  flip(kernel,kernel_temp,flipcode);
+  flip(kernel,kernel_temp, flipcode);
   filter2D(source, dest, img.depth(), kernel_temp, anchor, 0, borderMode);
  
+
+
+
+
   if(CONVOLUTION_VALID == type) {
     dest = dest.colRange((kernel.cols-1)/2, dest.cols - kernel.cols/2)
                .rowRange((kernel.rows-1)/2, dest.rows - kernel.rows/2);
@@ -27,36 +31,50 @@ void conv2(const Mat &img, const Mat& kernel, ConvolutionType type, Mat& dest, i
 
 
 
-void ExtendPeriod(const Mat &B, Mat &C, int level)
+void ExtendPeriod(const Mat &B, Mat &C, int level, Dimension _D)
 {
 	/* Check for correct values of levels */
-
-	if (level >= 0 && level < 6)
+	if (_D == Two)
 	{
-
-		int Level_Mat[3] = {2,4,8};               /* This tells how much the source Matrix must be expanded at edges */
-		int inc_Per = Level_Mat[level];			  /* Calculate the expansion at that particular level */
-		C = Mat::zeros(B.rows + inc_Per , B.cols + inc_Per , CV_32F);	 /* Create Matrix with expanded edges */
+		
+			int Level_Mat[3] = {2,4,8};               /* This tells how much the source Matrix must be expanded at edges */
+			int inc_Per = Level_Mat[level];			  /* Calculate the expansion at that particular level */
+			C = Mat::zeros(B.rows + inc_Per , B.cols + inc_Per , CV_32F);	 /* Create Matrix with expanded edges */
 		
 
-		/* Copy original Matrix into new Matrix */
+			/* Copy original Matrix into new Matrix */
 
-		B.rowRange(0,B.rows).copyTo(C.rowRange((int)(inc_Per/2), B.rows + inc_Per/2).colRange((int)(inc_Per/2), B.cols + inc_Per/2));
+			B.rowRange(0,B.rows).copyTo(C.rowRange((int)(inc_Per/2), B.rows + inc_Per/2).colRange((int)(inc_Per/2), B.cols + inc_Per/2));
 
-		/* Copy the columns from original matrix to new Matrix for edge periodization */
+			/* Copy the columns from original matrix to new Matrix for edge periodization */
 
 		
-        B.rowRange(0, B.rows).colRange(B.cols - inc_Per/2, B.cols).copyTo(C.rowRange(inc_Per/2, B.rows + inc_Per/2).colRange(0, inc_Per/2));
+			B.rowRange(0, B.rows).colRange(B.cols - inc_Per/2, B.cols).copyTo(C.rowRange(inc_Per/2, B.rows + inc_Per/2).colRange(0, inc_Per/2));
 				
-		B.rowRange(0, B.rows).colRange(0, inc_Per/2).copyTo(C.rowRange(inc_Per/2, B.rows + inc_Per/2).colRange(B.cols + inc_Per/2, C.cols));
+			B.rowRange(0, B.rows).colRange(0, inc_Per/2).copyTo(C.rowRange(inc_Per/2, B.rows + inc_Per/2).colRange(B.cols + inc_Per/2, C.cols));
 		
 		
-		/* Copy the rows from original matrix to new Matrix for edge periodization */
+			/* Copy the rows from original matrix to new Matrix for edge periodization */
 		
-		C.rowRange(B.rows , B.rows + inc_Per/2).copyTo(C.rowRange(0, inc_Per/2));
+			C.rowRange(B.rows , B.rows + inc_Per/2).copyTo(C.rowRange(0, inc_Per/2));
 		
-		C.rowRange(inc_Per/2, inc_Per).copyTo(C.rowRange(B.rows + inc_Per/2, C.rows));
+			C.rowRange(inc_Per/2, inc_Per).copyTo(C.rowRange(B.rows + inc_Per/2, C.rows));
 		
+	}
+	else if (_D == One)
+	{
+			C = Mat::zeros(B.rows , B.cols + level , CV_32F);	 /* Create Matrix with expanded edges */
+
+			/* Copy original Matrix into new Matrix */
+
+			B.rowRange(0,B.rows).copyTo(C.colRange((int)(level/2), B.cols + level/2));
+
+			/* Copy the columns from original matrix to new Matrix for edge periodization */
+
+		
+			B.rowRange(0, B.rows).colRange(B.cols - level/2, B.cols).copyTo(C.colRange(0, level/2));
+				
+			B.rowRange(0, B.rows).colRange(0, level/2).copyTo(C.colRange(B.cols + level/2, C.cols));
 	}
 }
 
@@ -68,34 +86,45 @@ void FilterBank(Mat &Kernel_High, Mat &Kernel_Low, MotherWavelet Type, FilterTyp
 		/* Decide between Re-construction or Decomposition Filter bank */
 		/* D is for decomposition, and R is for re-construction*/
 
+
+
 		if (Filter == D)
 		{
 			/* Initiliaze Haar's Filter Bank */
 	
-			Kernel_High.at<float>(0,0) = (float) (0.7071);
-			Kernel_High.at<float>(0,1) = (float) (-0.7071);
+			Kernel_High.at<float>(0,0) = (float) (-0.7071);
+			Kernel_High.at<float>(0,1) = (float) (0.7071);
 			Kernel_Low.at<float>(0,0) = (float) (0.7071);
 			Kernel_Low.at<float>(0,1) = (float) (0.7071);
 		}
 		else if (Filter == R)
 		{
-			Kernel_High.at<float>(0,0) = (float) (-0.7071);
-			Kernel_High.at<float>(0,1) = (float) (0.7071);
+			Kernel_High.at<float>(0,0) = (float) (0.7071);
+			Kernel_High.at<float>(0,1) = (float) (-0.7071);
 			Kernel_Low.at<float>(0,0) = (float) (0.7071);
 			Kernel_Low.at<float>(0,1) = (float) (0.7071);
 		}
 	}
 }
 
-void KeepLoc(Mat &src, int Extension, int OriginalSize)
+void KeepLoc(Mat &src, int Extension, int OriginalSize, Dimension _D)
 {
 		  /* Get rid of the Edges, and get an image out which is of original dimensions */
 		  /* Note: This currently works for only Square matrices. Update needed. */
-		
+		if (_D == Two)
+		{
 		  int End = Extension + OriginalSize - 1;
 		  Mat dst = Mat::zeros(OriginalSize, OriginalSize, CV_32F);
 		  src.rowRange(Extension - 1, End).colRange(Extension - 1, End).copyTo(dst);
 		  src = dst;
+		}
+		else if (_D == One)
+		{
+			int End = Extension + OriginalSize - 1;
+			Mat dst = Mat::zeros(1, OriginalSize, CV_32F);
+            src.colRange(Extension - 1, End).copyTo(dst);
+		    src = dst;
+		}
 }
 
 
@@ -154,7 +183,7 @@ Mat DyadicUpsample(Mat &kernel, Dimension dim)
 }
 
 
-void SWT(const Mat &src_Original, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level, MotherWavelet Type)
+void SWT2(const Mat &src_Original, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level, MotherWavelet Type)
 {
 
 	/* Right now only Haar is implemented */
@@ -190,7 +219,7 @@ void SWT(const Mat &src_Original, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level,
 
 			/* Extend source Matrix to deal with edge related issues */
 
-			ExtendPeriod(src, Extended_src, i);
+			ExtendPeriod(src, Extended_src, i, Two);
 			
 			
 
@@ -210,7 +239,7 @@ void SWT(const Mat &src_Original, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level,
 			
 			transpose(z , swa);
 						
-			KeepLoc(swa, Kernel_Low.cols + 1, src.cols);
+			KeepLoc(swa, Kernel_Low.cols + 1, src.cols, Two);
 			
 			
 			/* Calculating Horizontal coeffcients */
@@ -221,7 +250,7 @@ void SWT(const Mat &src_Original, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level,
 			
 			transpose(z , swh);
 			
-			KeepLoc(swh, Kernel_Low.cols + 1, src.cols);
+			KeepLoc(swh, Kernel_Low.cols + 1, src.cols, Two);
 			
 			
 			/* Calculating Vertical coeffcients */
@@ -235,7 +264,7 @@ void SWT(const Mat &src_Original, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level,
 			
 			transpose(z , swv);
 			
-			KeepLoc(swv, Kernel_Low.cols + 1, src.cols);
+			KeepLoc(swv, Kernel_Low.cols + 1, src.cols, Two);
 			
 			
 
@@ -246,7 +275,7 @@ void SWT(const Mat &src_Original, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level,
 
 			transpose(z , swd);
 
-			KeepLoc(swd, Kernel_Low.cols + 1, src.cols);
+			KeepLoc(swd, Kernel_Low.cols + 1, src.cols, Two);
 			
 			
 
@@ -325,7 +354,7 @@ Mat PartitionedWaveletTransform(Mat &src, Mat &kernel_1, Mat &kernel_2, int Leve
 
 		/* Extending period of matrix */
 
-		ExtendPeriod(C, temp_1, Level);	
+		ExtendPeriod(C, temp_1, Level, Two);	
 		
 		/* convolution to calculate Wavelet Transform */
 
@@ -334,13 +363,13 @@ Mat PartitionedWaveletTransform(Mat &src, Mat &kernel_1, Mat &kernel_2, int Leve
 		transpose(temp_2, temp_2);
 				
 		conv2(temp_2, kernel_2, CONVOLUTION_FULL, temp_2, 0);	
-		KeepLoc(temp_2, kernel_1.rows + 1, size);
+		KeepLoc(temp_2, kernel_1.rows + 1, size, Two);
 
 
 		return temp_2;
 }
 
-void ISWT(const Mat &dst, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level, MotherWavelet Type)
+void ISWT2(const Mat &dst, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level, MotherWavelet Type)
 {
 		if (Type == Haar)
 		{
@@ -404,6 +433,144 @@ void ISWT(const Mat &dst, Mat &ca, Mat &ch, Mat &cd, Mat &cv, int Level, MotherW
 		}
 }
 
+
+void SWT(const Mat &src_Original, Mat &swa, Mat &swd, int Level, MotherWavelet Type)
+{
+
+	/* Right now only Haar is implemented */
+
+
+	if (Type == Haar)
+	{
+		
+		/* Decalre and Intialize helper Matrices */
+
+		Mat Kernel_High = Mat::zeros(1, 2, CV_32F);
+		Mat Kernel_Low = Mat::zeros(1, 2, CV_32F);
+		swa = Mat::zeros(Level, src_Original.cols, CV_32F);
+		swd = Mat::zeros(Level, src_Original.cols, CV_32F);;
+		Mat src = src_Original;
+		Mat y_Low, y_High;
+
+		/* Initiliaze Filter Banks for Haar Transform */
+
+
+		FilterBank(Kernel_High, Kernel_Low, Haar, D);
+
+		
+
+		/* The main loop for calculating Stationary 2D Wavelet Transform */
+
+
+		for (int i = 0; i < Level; i++)
+		{
+		
+			/* A temporary src Matrix for calculations */			
+
+			Mat Extended_src;
+			
+
+			/* Extend source Matrix to deal with edge related issues */
+
+			
+			ExtendPeriod(src, Extended_src, Kernel_High.cols, One);
+			
+			
+			/* Calculating Approximation coeffcients */
+
+			
+			conv2(Extended_src, Kernel_Low, CONVOLUTION_FULL, y_Low, 1);
+			
+			KeepLoc(y_Low, Kernel_Low.cols + 1, src.cols, One);
+
+			
+
+
+			
+			
+			y_Low.copyTo(swa.row(i));
+
+			
+			/* Calculating Detail coeffcients */
+			
+			
+			conv2(Extended_src, Kernel_High, CONVOLUTION_FULL, y_High, 1);
+			
+
+			KeepLoc(y_High, Kernel_Low.cols + 1, src.cols, One);
+			
+			
+			/*if (i == 2)
+			{
+				for (int row = 0; row < Extended_src.rows; row++)
+				{
+					for(int col = 0;  col < 10; col++)
+					{	
+						cout<<y_High.row(row).col(col)<<" ";
+					}
+					cout<<endl;
+					break;
+			   }
+			}*/
+			
+			
+			y_High.copyTo(swd.row(i));
+			
+			/* Upsamle Low and High Pass Filters */
+
+			Kernel_High = DyadicUpsample(Kernel_High, One);
+			Kernel_Low = DyadicUpsample(Kernel_Low, One);
+
+			
+
+			
+			/* Copy the Approximation co-efficients into this stage's source Mat */
+			/* for next stage decomposition */
+
+			swa.row(i).copyTo(src);
+
+		}
+	}
+}
+
+
+
+void Test_conv()
+{
+
+		Mat Kernel_High = Mat::zeros(1, 2, CV_32F);
+		Mat Kernel_Low = Mat::zeros(1, 2, CV_32F);
+
+        FilterBank(Kernel_High, Kernel_Low, Haar, D);
+		Mat a = Mat::zeros(1, 4, CV_32F);
+
+		Kernel_High = DyadicUpsample(Kernel_High, One);
+		Kernel_Low = DyadicUpsample(Kernel_Low, One);
+
+		a.row(0).col(0) = 1;
+		a.row(0).col(1) = 2;
+		a.row(0).col(2) = 3;
+		a.row(0).col(3) = 4;
+
+		Mat y_High, y_Low;
+
+		 
+		conv2(a, Kernel_High, CONVOLUTION_FULL, y_High, 1);
+		conv2(a, Kernel_Low, CONVOLUTION_FULL, y_Low, 1);
+		/*for (int i = 0; i <  y_Low.rows; i++)
+		{
+			for(int j = 0; j <  y_Low.cols; j++)
+			{	
+				cout<< y_Low.row(i).col(j)<<" ";
+			}
+			cout<<endl;
+			break;
+		}	*/
+
+}
+
+
+
 int main ()
 {
   /// Declare variables
@@ -415,14 +582,45 @@ int main ()
   /// Load an image
   src = imread("J:/Work/Filter/Data/lena.jpg", CV_LOAD_IMAGE_GRAYSCALE);
 
-
+  Test_conv();
   Mat swa = Mat::zeros(512,512,CV_32F);
   Mat swh = Mat::zeros(512,512,CV_32F);
   Mat swv = Mat::zeros(512,512,CV_32F);
   Mat swd = Mat::zeros(512,512,CV_32F);
 
+  Mat a = Mat::zeros(1, 4, CV_32F);
+
+  a.row(0).col(0) = 1;
+  a.row(0).col(1) = 2;
+  a.row(0).col(2) = 3;
+  a.row(0).col(3) = 4;
+
+ 
+  CvMLData b;
+  b.read_csv("J:\\Work\\SWT_Denoise\\noisbloc.csv");
+  
+  Mat c;
+  
+  c = b.get_values();
 
   
+
+  Mat swa_1, swd_1;
+
+  SWT(c, swa_1, swd_1, 3, Haar);
+
+  for (int i = 1; i < swa_1.rows; i++)
+  {
+	for(int j = 0; j < 10; j++)
+	{	
+		cout<<swd_1.row(i).col(j)<<" ";
+	}
+	cout<<endl;
+	break;
+  }
+
+
+
   if( !src.data )
   { return -1; }
    
@@ -432,9 +630,9 @@ int main ()
 
   /* Calling Stationary Wavelet Transform Function */
   double start = omp_get_wtime();
-  SWT(src, swa, swh, swd, swv, 1, Haar);
+  SWT2(src, swa, swh, swd, swv, 1, Haar);
 				
-  ISWT(src, swa, swh, swd, swv, 1, Haar);
+  ISWT2(src, swa, swh, swd, swv, 1, Haar);
   double end = omp_get_wtime() - start;
   return 0;
 }
